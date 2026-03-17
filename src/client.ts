@@ -112,8 +112,9 @@ export class FikenClient {
     path: string,
     filePath: string,
     filename: string,
-    attachToSale: boolean = true,
-    attachToPayment: boolean = false
+    attachToSale: boolean = false,
+    attachToPayment: boolean = false,
+    description?: string
   ): Promise<{ location: string | null }> {
     return this.enqueue(async () => {
       const fs = await import("fs");
@@ -138,15 +139,24 @@ export class FikenClient {
         `--${boundary}\r\nContent-Disposition: form-data; name="filename"\r\n\r\n${filename}\r\n`
       ));
 
-      // attachToSale field
-      parts.push(Buffer.from(
-        `--${boundary}\r\nContent-Disposition: form-data; name="attachToSale"\r\n\r\n${attachToSale}\r\n`
-      ));
+      // Optional description (used by inbox)
+      if (description) {
+        parts.push(Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="description"\r\n\r\n${description}\r\n`
+        ));
+      }
 
-      // attachToPayment field
-      parts.push(Buffer.from(
-        `--${boundary}\r\nContent-Disposition: form-data; name="attachToPayment"\r\n\r\n${attachToPayment}\r\n`
-      ));
+      // Attachment fields (used by purchase/invoice attachments, not inbox)
+      if (attachToSale) {
+        parts.push(Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="attachToSale"\r\n\r\ntrue\r\n`
+        ));
+      }
+      if (attachToPayment) {
+        parts.push(Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="attachToPayment"\r\n\r\ntrue\r\n`
+        ));
+      }
 
       // file field
       parts.push(Buffer.from(
