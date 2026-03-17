@@ -8,8 +8,10 @@ const PurchaseLineSchema = z.object({
   description: z.string().describe("Line description (e.g. supplier name or what was purchased)"),
   account: z.string().describe("Account code (e.g. '6553' for IT software, '7321' for marketing, '6705' for accounting fees)"),
   vatType: z.string().describe("VAT type: 'HIGH' (25%), 'MEDIUM' (15%), 'LOW' (12%), 'NONE' (0%), 'EXEMPT'"),
-  netPrice: z.number().int().describe("Net amount in cents (e.g. 100000 = 1000.00 NOK)"),
-  vat: z.number().int().describe("VAT amount in cents (e.g. 25000 = 250.00 NOK for 25% on 1000 NOK)"),
+  netPrice: z.number().int().optional().describe("Net amount in NOK cents. Use for NOK purchases."),
+  vat: z.number().int().optional().describe("VAT amount in NOK cents. Use for NOK purchases."),
+  netPriceInCurrency: z.number().int().optional().describe("Net amount in foreign currency cents. Use for non-NOK purchases (e.g. 2000 = $20.00 USD)."),
+  vatInCurrency: z.number().int().optional().describe("VAT amount in foreign currency cents. Use for non-NOK purchases (e.g. 500 = $5.00 USD)."),
 });
 
 export function registerWritePurchaseTools(server: McpServer, client: FikenClient): void {
@@ -25,6 +27,7 @@ export function registerWritePurchaseTools(server: McpServer, client: FikenClien
       supplierId: z.number().int().optional().describe("Supplier contact ID from Fiken. Use fiken_list_contacts to find it."),
       paymentAccount: z.string().optional().describe("Payment account code (e.g. '1920' for bank account, '2390:10003' for credit card)"),
       paymentDate: z.string().optional().describe("Payment date (YYYY-MM-DD). Required if paid=true"),
+      paymentAmountInNok: z.number().int().optional().describe("Payment amount in NOK cents. Required for foreign currency purchases (e.g. 270000 = 2700.00 NOK)"),
       lines: z.array(PurchaseLineSchema).min(1).describe("Purchase line items"),
     },
     wrapToolError(async (args) => {
@@ -36,6 +39,7 @@ export function registerWritePurchaseTools(server: McpServer, client: FikenClien
         supplierId: z.number().int().optional(),
         paymentAccount: z.string().optional(),
         paymentDate: z.string().optional(),
+        paymentAmountInNok: z.number().int().optional(),
         lines: z.array(PurchaseLineSchema).min(1),
       });
       const { companySlug, ...purchaseData } = schema.parse(args);
@@ -52,6 +56,7 @@ export function registerWritePurchaseTools(server: McpServer, client: FikenClien
       if (purchaseData.supplierId) body.supplierId = purchaseData.supplierId;
       if (purchaseData.paymentAccount) body.paymentAccount = purchaseData.paymentAccount;
       if (purchaseData.paymentDate) body.paymentDate = purchaseData.paymentDate;
+      if (purchaseData.paymentAmountInNok) body.paymentAmountInNok = purchaseData.paymentAmountInNok;
 
       const result = await client.post(
         `/companies/${companySlug}/purchases`,
