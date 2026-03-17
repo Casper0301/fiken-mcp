@@ -6,7 +6,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for the
 
 ## Features
 
-- 65+ tools covering the full Fiken v2 API (read + write)
+- 67 tools covering the full Fiken v2 API (read + write)
 - Multi-company support — `companySlug` is a parameter on every tool
 - Paginated list endpoints with metadata
 - Serial request queue (respects Fiken's 1 concurrent request per user rule)
