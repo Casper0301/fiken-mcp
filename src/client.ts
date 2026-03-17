@@ -112,9 +112,12 @@ export class FikenClient {
     path: string,
     filePath: string,
     filename: string,
-    attachToSale: boolean = false,
-    attachToPayment: boolean = false,
-    description?: string
+    options?: {
+      attachToSale?: boolean;
+      attachToPayment?: boolean;
+      description?: string;
+      name?: string;
+    }
   ): Promise<{ location: string | null }> {
     return this.enqueue(async () => {
       const fs = await import("fs");
@@ -134,25 +137,32 @@ export class FikenClient {
       const boundary = `----FormBoundary${Date.now()}`;
       const parts: Buffer[] = [];
 
+      // name field (used by inbox — "name of the inbox document")
+      if (options?.name) {
+        parts.push(Buffer.from(
+          `--${boundary}\r\nContent-Disposition: form-data; name="name"\r\n\r\n${options.name}\r\n`
+        ));
+      }
+
       // filename field
       parts.push(Buffer.from(
         `--${boundary}\r\nContent-Disposition: form-data; name="filename"\r\n\r\n${filename}\r\n`
       ));
 
-      // Optional description (used by inbox)
-      if (description) {
+      // description field (used by inbox)
+      if (options?.description) {
         parts.push(Buffer.from(
-          `--${boundary}\r\nContent-Disposition: form-data; name="description"\r\n\r\n${description}\r\n`
+          `--${boundary}\r\nContent-Disposition: form-data; name="description"\r\n\r\n${options.description}\r\n`
         ));
       }
 
-      // Attachment fields (used by purchase/invoice attachments, not inbox)
-      if (attachToSale) {
+      // Attachment fields (used by purchase/invoice attachments)
+      if (options?.attachToSale) {
         parts.push(Buffer.from(
           `--${boundary}\r\nContent-Disposition: form-data; name="attachToSale"\r\n\r\ntrue\r\n`
         ));
       }
-      if (attachToPayment) {
+      if (options?.attachToPayment) {
         parts.push(Buffer.from(
           `--${boundary}\r\nContent-Disposition: form-data; name="attachToPayment"\r\n\r\ntrue\r\n`
         ));

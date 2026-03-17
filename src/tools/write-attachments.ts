@@ -29,8 +29,7 @@ export function registerWriteAttachmentTools(server: McpServer, client: FikenCli
         `/companies/${companySlug}/purchases/${purchaseId}/attachments`,
         filePath,
         filename,
-        attachToSale,
-        attachToPayment
+        { attachToSale, attachToPayment }
       );
 
       return toText({

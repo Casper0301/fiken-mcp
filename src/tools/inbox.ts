@@ -51,9 +51,7 @@ export function registerInboxTools(server: McpServer, client: FikenClient): void
         `/companies/${companySlug}/inbox`,
         filePath,
         filename,
-        false,
-        false,
-        description
+        { name: filename, description }
       );
 
       return toText({
