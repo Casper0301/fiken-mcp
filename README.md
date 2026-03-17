@@ -1,16 +1,18 @@
 # fiken-mcp
 
-A **read-only** [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for the [Fiken](https://fiken.no) accounting API. Exposes all Fiken GET endpoints as MCP tools so AI assistants (Claude, etc.) can query your accounting data directly.
+A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for the [Fiken](https://fiken.no) accounting API. Exposes Fiken's full read API as MCP tools, plus write tools for booking purchases, managing contacts, creating invoice drafts, attaching receipts, and uploading to the inbox — all with human-in-the-loop confirmation built in.
 
-> **Read-only guarantee:** This server only ever makes HTTP GET requests to the Fiken API. No data is created, modified, or deleted.
+> **Human-in-the-loop:** All write tools are clearly marked with ⚠️ and require explicit user confirmation before execution. No data is modified without your approval.
 
 ## Features
 
-- 61 tools covering the full Fiken v2 read API
+- 65+ tools covering the full Fiken v2 API (read + write)
 - Multi-company support — `companySlug` is a parameter on every tool
 - Paginated list endpoints with metadata
 - Serial request queue (respects Fiken's 1 concurrent request per user rule)
 - Structured error responses — API errors are returned as tool results rather than crashing the session
+- Foreign currency support — book purchases in USD, EUR, etc. with exact NOK payment amounts
+- File uploads — attach receipts (PDF, PNG, JPG, GIF) to purchases or upload directly to the Fiken inbox
 
 ## Requirements
 
@@ -20,7 +22,7 @@ A **read-only** [Model Context Protocol (MCP)](https://modelcontextprotocol.io) 
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/fiken-mcp
+git clone https://github.com/Casper0301/fiken-mcp
 cd fiken-mcp
 npm install
 npm run build
@@ -55,16 +57,10 @@ Config file locations:
 Add the server to your Claude Code project with:
 
 ```bash
-claude mcp add fiken -- node /absolute/path/to/fiken-mcp/build/index.js
-```
-
-Then set the token:
-
-```bash
 claude mcp add fiken -e FIKEN_API_TOKEN=your-token-here -- node /absolute/path/to/fiken-mcp/build/index.js
 ```
 
-Or if you prefer to keep the config in version control, add it to `.mcp.json` in your project root:
+Or add it to `.mcp.json` in your project root:
 
 ```json
 {
@@ -156,6 +152,7 @@ Start with `fiken_list_companies` to get the `companySlug` values needed by all 
 | `fiken_list_contact_persons` | List contact persons for a contact |
 | `fiken_get_contact_person` | Get a specific contact person |
 | `fiken_list_contact_groups` | List contact groups |
+| `fiken_create_contact` ⚠️ | Create a new customer or supplier contact |
 
 ### Invoices
 
@@ -168,6 +165,7 @@ Start with `fiken_list_companies` to get the `companySlug` values needed by all 
 | `fiken_list_invoice_drafts` | List invoice drafts |
 | `fiken_get_invoice_draft` | Get a specific invoice draft |
 | `fiken_list_invoice_draft_attachments` | List attachments for an invoice draft |
+| `fiken_create_invoice_draft` ⚠️ | Create a new invoice draft for review before sending |
 
 ### Credit Notes
 
@@ -232,6 +230,9 @@ Start with `fiken_list_companies` to get the `companySlug` values needed by all 
 | `fiken_list_purchase_attachments` | List attachments for a purchase |
 | `fiken_list_purchase_drafts` | List purchase drafts |
 | `fiken_get_purchase_draft` | Get a specific purchase draft |
+| `fiken_create_purchase` ⚠️ | Book a purchase/expense. Supports NOK and foreign currencies. |
+| `fiken_delete_purchase` ⚠️ | Soft-delete a purchase (creates a reverse transaction) |
+| `fiken_attach_to_purchase` ⚠️ | Attach a receipt file (PDF, PNG, JPG, GIF) to a purchase |
 
 ### Products
 
@@ -262,10 +263,46 @@ Start with `fiken_list_companies` to get the `companySlug` values needed by all 
 |------|-------------|
 | `fiken_list_inbox` | List inbox documents |
 | `fiken_get_inbox_document` | Get a specific inbox document |
+| `fiken_upload_to_inbox` ⚠️ | Upload a receipt or document to the Fiken inbox for auto-detection |
+
+## Write tools & human-in-the-loop
+
+Tools marked with ⚠️ write data to Fiken. They are designed to always show a full preview of what will be posted and require explicit user confirmation before executing.
+
+### Booking a purchase
+
+```
+You: Book this receipt [attaches PDF]
+AI:  Here's what I'll post:
+     - Supplier: Anthropic
+     - Date: 2026-02-14
+     - Amount: USD 25.00 (NOK 245.98)
+     - Account: 6553 Programvare
+     - Payment: Mastercard 7972
+     Confirm?
+You: Yes
+AI:  ✓ Purchase created and receipt attached.
+```
+
+### Foreign currency purchases
+
+For non-NOK purchases, provide the exact NOK amount that was charged to your card (from your bank statement or transaction export). This allows Fiken to match the posting to the correct bank transaction automatically.
+
+```json
+{
+  "currency": "USD",
+  "lines": [{ "netPriceInCurrency": 2500, "vatInCurrency": 0, ... }],
+  "paymentAmountInNok": 24598
+}
+```
+
+### Uploading to inbox
+
+Use `fiken_upload_to_inbox` to drop a receipt into the Fiken inbox and let Fiken's OCR suggest the booking — useful when you want Fiken to handle the recognition automatically.
 
 ## Notes
 
-- **Amounts** are returned in **øre (cents)** as integers, matching the Fiken API — e.g. `100000` means 1000.00 NOK
+- **Amounts** are in **øre (cents)** as integers — e.g. `100000` = 1000.00 NOK. For foreign currency line items, use `netPriceInCurrency`/`vatInCurrency` instead of `netPrice`/`vat`.
 - **Account codes** are strings — e.g. `"1920"` or `"1500:10001"`
 - **Pagination** defaults to page 0, 25 results per page (max 100)
 - **Date filters** use `YYYY-MM-DD` format
@@ -273,7 +310,6 @@ Start with `fiken_list_companies` to get the `companySlug` values needed by all 
 ## Development
 
 ```bash
-npm test          # run tests
 npm run build     # compile TypeScript
 npm run dev       # run without building (uses tsx)
 ```
