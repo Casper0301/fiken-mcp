@@ -71,4 +71,32 @@ export function registerWritePurchaseTools(server: McpServer, client: FikenClien
       });
     })
   );
+
+  server.tool(
+    "fiken_delete_purchase",
+    "⚠️ WRITES TO FIKEN — Soft-deletes a purchase by creating a reverse transaction. The purchase is not truly deleted but marked as deleted. ALWAYS confirm with the user before calling.",
+    {
+      ...CompanySlugSchema.shape,
+      purchaseId: z.number().int().describe("Purchase ID to delete"),
+      description: z.string().describe("Reason for deleting the purchase"),
+    },
+    wrapToolError(async (args) => {
+      const schema = CompanySlugSchema.extend({
+        purchaseId: z.number().int(),
+        description: z.string(),
+      });
+      const { companySlug, purchaseId, description } = schema.parse(args);
+
+      const data = await client.patch(
+        `/companies/${companySlug}/purchases/${purchaseId}/delete`,
+        { description }
+      );
+
+      return toText({
+        success: true,
+        message: "Purchase deleted successfully in Fiken (reverse transaction created)",
+        data,
+      });
+    })
+  );
 }
