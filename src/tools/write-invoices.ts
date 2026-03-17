@@ -4,17 +4,6 @@ import { FikenClient } from "../client.js";
 import { CompanySlugSchema } from "../types.js";
 import { wrapToolError, toText } from "../utils.js";
 
-const InvoiceLineSchema = z.object({
-  description: z.string().describe("Line item description"),
-  vatType: z.string().describe("VAT type: 'HIGH' (25%), 'MEDIUM' (15%), 'LOW' (12%), 'NONE' (0%), 'EXEMPT'"),
-  account: z.string().default("3020").describe("Income account code (default: 3020)"),
-  netPrice: z.number().int().describe("Net amount in cents (e.g. 100000 = 1000.00 NOK)"),
-  vat: z.number().int().describe("VAT amount in cents"),
-  quantity: z.number().optional().describe("Quantity (default: 1)"),
-  unitPrice: z.number().int().optional().describe("Unit price in cents (if using quantity)"),
-  productId: z.number().int().optional().describe("Product ID from Fiken product catalog"),
-});
-
 export function registerWriteInvoiceTools(server: McpServer, client: FikenClient): void {
   server.tool(
     "fiken_create_invoice_draft",
@@ -23,31 +12,50 @@ export function registerWriteInvoiceTools(server: McpServer, client: FikenClient
       ...CompanySlugSchema.shape,
       issueDate: z.string().describe("Invoice date (YYYY-MM-DD)"),
       dueDate: z.string().describe("Due date (YYYY-MM-DD)"),
-      customerId: z.number().int().describe("Customer contact ID from Fiken. Use fiken_list_contacts to find it."),
+      customerId: z.any().describe("Customer contact ID from Fiken (number)"),
       currency: z.string().default("NOK").describe("Currency code (default: NOK)"),
       orderReference: z.string().optional().describe("Order reference"),
       ourReference: z.string().optional().describe("Our reference"),
       yourReference: z.string().optional().describe("Customer's reference"),
       bankAccountCode: z.string().optional().describe("Bank account code for payment (e.g. '1920:10001')"),
-      lines: z.array(InvoiceLineSchema).min(1).describe("Invoice line items"),
+      lines: z.any().describe("Invoice line items — JSON array of {description, vatType, account, netPrice, vat, quantity?, unitPrice?, productId?}"),
     },
-    wrapToolError(async (args) => {
-      const schema = CompanySlugSchema.extend({
-        issueDate: z.string(),
-        dueDate: z.string(),
-        customerId: z.number().int(),
-        currency: z.string().default("NOK"),
-        orderReference: z.string().optional(),
-        ourReference: z.string().optional(),
-        yourReference: z.string().optional(),
-        bankAccountCode: z.string().optional(),
-        lines: z.array(InvoiceLineSchema).min(1),
+    wrapToolError(async (args: unknown) => {
+      const a = args as Record<string, unknown>;
+      const companySlug = String(a.companySlug);
+      const customerId = Number(a.customerId);
+      const lines = typeof a.lines === "string" ? JSON.parse(a.lines) : a.lines;
+
+      const parsedLines = (lines as unknown[]).map((line: unknown) => {
+        const l = line as Record<string, unknown>;
+        return {
+          description: String(l.description),
+          vatType: String(l.vatType),
+          account: String(l.account || "3020"),
+          netPrice: Number(l.netPrice),
+          vat: Number(l.vat),
+          ...(l.quantity != null && { quantity: Number(l.quantity) }),
+          ...(l.unitPrice != null && { unitPrice: Number(l.unitPrice) }),
+          ...(l.productId != null && { productId: Number(l.productId) }),
+        };
       });
-      const { companySlug, ...invoiceData } = schema.parse(args);
+
+      const body: Record<string, unknown> = {
+        issueDate: String(a.issueDate),
+        dueDate: String(a.dueDate),
+        customerId,
+        currency: String(a.currency || "NOK"),
+        lines: parsedLines,
+      };
+
+      if (a.orderReference) body.orderReference = String(a.orderReference);
+      if (a.ourReference) body.ourReference = String(a.ourReference);
+      if (a.yourReference) body.yourReference = String(a.yourReference);
+      if (a.bankAccountCode) body.bankAccountCode = String(a.bankAccountCode);
 
       const result = await client.post(
         `/companies/${companySlug}/invoices/drafts`,
-        invoiceData
+        body
       );
 
       return toText({

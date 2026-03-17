@@ -10,21 +10,20 @@ export function registerWriteAttachmentTools(server: McpServer, client: FikenCli
     "⚠️ WRITES TO FIKEN — Attaches a file (PDF, PNG, JPG, GIF) to an existing purchase. Use this to attach receipt documentation after creating a purchase.",
     {
       ...CompanySlugSchema.shape,
-      purchaseId: z.number().int().describe("Purchase ID to attach the file to"),
+      purchaseId: z.any().describe("Purchase ID to attach the file to (number)"),
       filePath: z.string().describe("Absolute path to the file on disk (e.g. /Users/.../receipt.pdf)"),
-      filename: z.string().describe("Filename with extension (e.g. 'receipt.pdf'). Must end with .pdf, .png, .jpg, .jpeg, or .gif"),
-      attachToSale: z.boolean().default(true).describe("Attach as sale/purchase documentation (default: true)"),
-      attachToPayment: z.boolean().default(false).describe("Attach as payment documentation (default: false)"),
+      filename: z.string().describe("Filename with extension (e.g. 'receipt.pdf')"),
+      attachToSale: z.any().optional().describe("Attach as sale/purchase documentation (default: true)"),
+      attachToPayment: z.any().optional().describe("Attach as payment documentation (default: false)"),
     },
-    wrapToolError(async (args) => {
-      const schema = CompanySlugSchema.extend({
-        purchaseId: z.number().int(),
-        filePath: z.string(),
-        filename: z.string(),
-        attachToSale: z.boolean().default(true),
-        attachToPayment: z.boolean().default(false),
-      });
-      const { companySlug, purchaseId, filePath, filename, attachToSale, attachToPayment } = schema.parse(args);
+    wrapToolError(async (args: unknown) => {
+      const a = args as Record<string, unknown>;
+      const companySlug = String(a.companySlug);
+      const purchaseId = Number(a.purchaseId);
+      const filePath = String(a.filePath);
+      const filename = String(a.filename);
+      const attachToSale = a.attachToSale === false || a.attachToSale === "false" ? false : true;
+      const attachToPayment = a.attachToPayment === true || a.attachToPayment === "true" ? true : false;
 
       const result = await client.uploadFile(
         `/companies/${companySlug}/purchases/${purchaseId}/attachments`,
