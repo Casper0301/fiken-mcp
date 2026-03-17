@@ -108,6 +108,75 @@ export class FikenClient {
     });
   }
 
+  async uploadFile(
+    path: string,
+    filePath: string,
+    filename: string,
+    attachToSale: boolean = true,
+    attachToPayment: boolean = false
+  ): Promise<{ location: string | null }> {
+    return this.enqueue(async () => {
+      const fs = await import("fs");
+      const nodePath = await import("path");
+
+      const fileBuffer = fs.readFileSync(filePath);
+      const ext = nodePath.extname(filename).toLowerCase();
+      const mimeTypes: Record<string, string> = {
+        ".pdf": "application/pdf",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+      };
+      const mimeType = mimeTypes[ext] || "application/octet-stream";
+
+      const boundary = `----FormBoundary${Date.now()}`;
+      const parts: Buffer[] = [];
+
+      // filename field
+      parts.push(Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="filename"\r\n\r\n${filename}\r\n`
+      ));
+
+      // attachToSale field
+      parts.push(Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="attachToSale"\r\n\r\n${attachToSale}\r\n`
+      ));
+
+      // attachToPayment field
+      parts.push(Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="attachToPayment"\r\n\r\n${attachToPayment}\r\n`
+      ));
+
+      // file field
+      parts.push(Buffer.from(
+        `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${mimeType}\r\n\r\n`
+      ));
+      parts.push(fileBuffer);
+      parts.push(Buffer.from(`\r\n--${boundary}--\r\n`));
+
+      const body = Buffer.concat(parts);
+
+      const url = `${FIKEN_BASE_URL}${path}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          "Content-Length": String(body.length),
+        },
+        body,
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new FikenApiError(response.status, response.statusText, errorBody);
+      }
+
+      return { location: response.headers.get("Location") };
+    });
+  }
+
   async patch<T = unknown>(
     path: string,
     params?: Record<string, string | number | boolean | undefined>
