@@ -15,3 +15,6 @@ export { registerProductTools } from "./products.js";
 export { registerProjectTools } from "./projects.js";
 export { registerTimeEntryTools } from "./time-entries.js";
 export { registerInboxTools } from "./inbox.js";
+export { registerWritePurchaseTools } from "./write-purchases.js";
+export { registerWriteContactTools } from "./write-contacts.js";
+export { registerWriteInvoiceTools } from "./write-invoices.js";

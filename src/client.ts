@@ -74,6 +74,40 @@ export class FikenClient {
     });
   }
 
+  async post<T = unknown>(
+    path: string,
+    body: unknown
+  ): Promise<{ data: T | null; location: string | null }> {
+    return this.enqueue(async () => {
+      const url = `${FIKEN_BASE_URL}${path}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new FikenApiError(response.status, response.statusText, errorBody);
+      }
+
+      const location = response.headers.get("Location");
+      let data: T | null = null;
+      const text = await response.text();
+      if (text) {
+        try {
+          data = JSON.parse(text) as T;
+        } catch {
+          // 201 responses often have no body
+        }
+      }
+      return { data, location };
+    });
+  }
+
   async getPaginated<T>(
     path: string,
     pagination: { page?: number; pageSize?: number },

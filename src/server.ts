@@ -18,6 +18,9 @@ import {
   registerProjectTools,
   registerTimeEntryTools,
   registerInboxTools,
+  registerWritePurchaseTools,
+  registerWriteContactTools,
+  registerWriteInvoiceTools,
 } from "./tools/index.js";
 
 export function createServer(token: string): McpServer {
@@ -45,6 +48,11 @@ export function createServer(token: string): McpServer {
   registerProjectTools(server, client);
   registerTimeEntryTools(server, client);
   registerInboxTools(server, client);
+
+  // Write tools (human-in-the-loop — always confirm before calling)
+  registerWritePurchaseTools(server, client);
+  registerWriteContactTools(server, client);
+  registerWriteInvoiceTools(server, client);
 
   return server;
 }
