@@ -17,8 +17,8 @@ export function registerWriteInvoiceTools(server: McpServer, client: FikenClient
       orderReference: z.string().optional().describe("Order reference"),
       ourReference: z.string().optional().describe("Our reference"),
       yourReference: z.string().optional().describe("Customer's reference"),
-      bankAccountCode: z.string().optional().describe("Bank account code for payment (e.g. '1920:10001')"),
-      lines: z.any().describe("Invoice line items — JSON array of {description, vatType, account, netPrice, vat, unitPrice, quantity?, productId?}. unitPrice is REQUIRED by Fiken when no productId is set. All amounts in øre (cents)."),
+      bankAccountCode: z.string().default("1920").describe("Bank account code for receiving payment. Default '1920' = Driftskonto."),
+      lines: z.any().describe("Invoice line items — JSON array of {description, vatType, account, netPrice, vat, unitPrice, quantity?, productId?}. unitPrice is REQUIRED by Fiken when no productId is set. All amounts in øre (cents). Account codes: 3100 = Tjeneste (service income), 3000 = Annet (general/OPEX re-billing). vatType: HIGH = 25% MVA."),
     },
     wrapToolError(async (args: unknown) => {
       const a = args as Record<string, unknown>;
@@ -35,7 +35,7 @@ export function registerWriteInvoiceTools(server: McpServer, client: FikenClient
         return {
           description: String(l.description),
           vatType: String(l.vatType),
-          account: String(l.account || "3020"),
+          account: String(l.account || "3100"),
           netPrice,
           vat: Number(l.vat),
           quantity,
