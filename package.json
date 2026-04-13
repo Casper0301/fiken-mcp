@@ -1,7 +1,7 @@
 {
-  "name": "fiken-mcp",
+  "name": "@casperschive/fiken-mcp",
   "version": "1.0.0",
-  "description": "MCP server for the Fiken accounting API",
+  "description": "Free MCP server for Fiken accounting — 67 tools for invoicing, bookkeeping, and receipt upload",
   "type": "module",
   "main": "build/index.js",
   "scripts": {

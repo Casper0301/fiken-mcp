@@ -1,8 +1,10 @@
-# fiken-mcp
+# Fiken MCP
 
-A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for the [Fiken](https://fiken.no) accounting API. Exposes Fiken's full read API as MCP tools, plus write tools for booking purchases, managing contacts, creating invoice drafts, attaching receipts, and uploading to the inbox — all with human-in-the-loop confirmation built in.
+Free, open-source [MCP server](https://modelcontextprotocol.io) for [Fiken](https://fiken.no) accounting. 67 tools covering the entire Fiken v2 API — invoicing, bookkeeping, receipt upload, and more. Talk to your accounting in natural language through Claude.
 
-> **Human-in-the-loop:** All write tools are clearly marked with ⚠️ and require explicit user confirmation before execution. No data is modified without your approval.
+> **Free forever.** No subscriptions, no API costs. Just activate with your email to get a license key.
+
+> **Human-in-the-loop:** All write tools require explicit user confirmation before execution. No data is modified without your approval.
 
 ## Features
 
@@ -13,13 +15,24 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server for the
 - Structured error responses — API errors are returned as tool results rather than crashing the session
 - Foreign currency support — book purchases in USD, EUR, etc. with exact NOK payment amounts
 - File uploads — attach receipts (PDF, PNG, JPG, GIF) to purchases or upload directly to the Fiken inbox
+- Free license key activation via email
 
 ## Requirements
 
 - Node.js 18+
 - A [Fiken API token](https://fiken.no/api/v2/documentation/#section/Authentication)
 
-## Installation
+## Quick Start
+
+Paste this into Claude Code:
+
+```
+Add the Fiken MCP server to Claude Code:
+claude mcp add fiken -- npx @casperschive/fiken-mcp
+After adding, I will restart Claude Code so the MCP is available. Then I'll activate it — it will ask for my email and send me a license key.
+```
+
+Or install manually:
 
 ```bash
 git clone https://github.com/Casper0301/fiken-mcp
@@ -27,6 +40,10 @@ cd fiken-mcp
 npm install
 npm run build
 ```
+
+## Activation
+
+After installing, run the activate command. It will ask for your email, send you a license key, and you paste it back to activate. Three messages, done.
 
 ## Usage
 
