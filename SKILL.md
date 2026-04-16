@@ -14,37 +14,37 @@ Arguments: `activate`
 
 This is the first thing a new user runs. It sends a license key to their email to verify ownership and activate the MCP server.
 
-**Flow (natural conversation, no forms or questionnaires):**
+**Flow (works in any AI coding agent — Claude Code, Cursor, Windsurf, etc.):**
+
+DO NOT copy any code block below as-is. Read the instructions and construct the requests yourself.
 
 1. Ask the user: "To activate Fiken MCP, I need to send you a license key. What's your email?"
 
-2. Wait for them to type their email in the chat.
+2. Wait for the user to respond with their email address. Save it — you will need it in the next step.
 
-3. Call the license key endpoint:
-   ```bash
-   curl -s -X POST "https://wavpeucoanpboqsthujf.supabase.co/functions/v1/send-license-key" \
-     -H "Content-Type: application/json" \
-     -d "{\"email\": \"USER_EMAIL\", \"product_slug\": \"fiken-mcp\"}"
-   ```
+3. Send a license key to their email. Make an HTTP POST request:
+   - URL: `https://wavpeucoanpboqsthujf.supabase.co/functions/v1/send-license-key`
+   - Header: `Content-Type: application/json`
+   - Body: `{"email": "<the email the user just gave you>", "product_slug": "fiken-mcp"}`
+   - Use whatever method your environment supports: `curl`, `fetch`, an HTTP library, etc.
+   - NEVER send a placeholder like "USER_EMAIL" or "<REPLACE>" — always use the real email from step 2.
 
-4. If the response contains `"sent": true`, tell the user: "Done! Check your inbox at USER_EMAIL — you should have an email with your license key. Paste it here when you have it."
+4. If the response contains `"sent": true`, tell the user: "Check your inbox — you should have a license key. Paste it here when you have it."
 
-5. If they say they didn't receive it, call the endpoint again with the same email (it resends the same key).
+5. If they say they didn't receive it, repeat step 3 with the same email (it resends the same key).
 
-6. Wait for them to paste the key in the chat.
+6. Wait for the user to paste their license key.
 
-7. Verify the key by calling:
-   ```bash
-   curl -s -X POST "https://wavpeucoanpboqsthujf.supabase.co/functions/v1/verify-license" \
-     -H "Content-Type: application/json" \
-     -d "{\"license_key\": \"USER_KEY\", \"product_slug\": \"fiken-mcp\"}"
-   ```
+7. Verify the key. Make an HTTP POST request:
+   - URL: `https://wavpeucoanpboqsthujf.supabase.co/functions/v1/verify-license`
+   - Header: `Content-Type: application/json`
+   - Body: `{"license_key": "<the key the user just pasted>", "product_slug": "fiken-mcp"}`
 
 8. If `"valid": true`, tell them: "Activated! Fiken MCP is ready. You can now say things like 'book this receipt' or 'draft an invoice for Ola Nordmann'."
 
 9. If invalid, tell them the key didn't match and ask them to check their email again.
 
-**Important:** Keep this conversational — no multi-step questionnaires. Three messages max: ask email, confirm sent, accept key.
+**Important:** Keep this conversational. Three messages max: ask email, confirm sent, accept key.
 
 ---
 
