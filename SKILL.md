@@ -4,15 +4,39 @@ MCP server for Fiken accounting with 67 tools covering the entire API. Book rece
 
 Use when: user says "fiken", "accounting", "book receipt", "draft invoice", "fiken mcp", "fiken setup", "book this", "create invoice".
 
-Arguments: `activate`
+Arguments: `setup` | `activate`
 
 ---
 
 ## Dispatch on Arguments
 
+### `setup` — Full Installation
+
+Builds the MCP server and registers it with Claude Code. Walk through conversationally.
+
+1. Check if the repo exists at `~/.claude/skills/fiken-mcp`. If not, clone it:
+   ```bash
+   git clone https://github.com/Casper0301/fiken-mcp.git ~/.claude/skills/fiken-mcp
+   ```
+
+2. Install dependencies and build:
+   ```bash
+   cd ~/.claude/skills/fiken-mcp && npm install && npm run build
+   ```
+
+3. Ask the user for their Fiken API token:
+   "I need your Fiken API token. Go to fiken.no → Settings → API and generate one. Paste it here."
+
+4. Register the MCP server with Claude Code using their token:
+   ```bash
+   claude mcp add fiken -e FIKEN_API_TOKEN=THEIR_TOKEN -- node ~/.claude/skills/fiken-mcp/build/index.js
+   ```
+
+5. Tell the user: "Fiken MCP is installed. Restart Claude Code, then run the activate command to get your license key."
+
 ### `activate` — Get License Key via Email
 
-This is the first thing a new user runs. It sends a license key to their email to verify ownership and activate the MCP server.
+This is the first thing a new user runs after setup. It sends a license key to their email to verify ownership and activate the MCP server.
 
 **Flow (works in any AI coding agent — Claude Code, Cursor, Windsurf, etc.):**
 
