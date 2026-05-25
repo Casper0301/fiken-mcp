@@ -2,9 +2,9 @@
 
 MCP server for Fiken accounting with **71 tools** covering the entire API. Book receipts, draft invoices, post external-system income (Shopify, Stripe, Square…), register payments, attach documents, check balances — all in natural language through Claude.
 
-Use when: user says "fiken", "accounting", "book receipt", "draft invoice", "fiken mcp", "fiken setup", "book this", "create invoice".
+Use when: user says "fiken", "accounting", "book receipt", "draft invoice", "fiken mcp", "fiken setup", "book this", "create invoice", "shopify month close", "stripe month close".
 
-Arguments: `setup` | `activate`
+Arguments: `setup` | `activate` | `shopify-setup`
 
 ---
 
@@ -70,6 +70,82 @@ DO NOT copy any code block below as-is. Read the instructions and construct the 
 
 **Important:** Keep this conversational. Three messages max: ask email, confirm sent, accept key.
 
+### `shopify-setup` — One-time setup for external-system income (Shopify / Stripe / Square)
+
+This is the guided flow for users who want to post Shopify (or Stripe / Square / Vipps) sales into Fiken with the source-system PDF attached automatically. It installs the **Chrome PDF Helper** companion extension and reconfigures Chrome so silent PDF capture works.
+
+Run it conversationally. Don't dump everything at once — walk one step at a time, wait for the user to confirm before moving on.
+
+**Pre-check:** Fiken MCP itself must already be installed and activated (run `setup` + `activate` first if not).
+
+**Step 1 — Confirm intent and platform.** Ask:
+
+> "I'll set up automated monthly close for sales that happen outside Fiken — Shopify, Stripe, Square, Vipps, or similar. After this, you can say things like 'close out Shopify for May' and Claude will fetch the finance summary PDF, attach it as bilag, register the sale, and settle the payment. Want to continue? (macOS only for now — Linux/Windows have their own Chrome quirks.)"
+
+Wait for yes. If they're on Windows or Linux, tell them the manual workflow works (drive Chrome's Print → Save as PDF themselves), but the silent-capture step is macOS-only right now.
+
+**Step 2 — Install the Chrome PDF Helper extension.** Run:
+
+```bash
+git clone https://github.com/Casper0301/chrome-pdf-helper.git ~/Projects/chrome-pdf-helper
+```
+
+Then walk the user through loading the unpacked extension. Don't try to drive Chrome via automation — give them the human steps:
+
+> 1. Open `chrome://extensions/` in Chrome
+> 2. Toggle **Developer mode** ON in the top-right
+> 3. Click **Load unpacked**
+> 4. Select the folder `~/Projects/chrome-pdf-helper`
+> 5. Tell me when the card appears showing "Chrome PDF Helper (Claude)"
+
+Wait for confirmation. Then ask them to open any tab and paste into the DevTools console:
+
+```js
+await window.chromePdf.version()
+```
+
+They should see `{ ok: true, version: "1.0.x" }`. If they see `undefined` or a `TypeError`, the extension didn't load — ask them to re-check the steps.
+
+**Step 3 — Pin "Save as PDF" as Chrome's default print destination.** This step matters: `--kiosk-printing` will use Chrome's last-used destination, NOT the system default printer. If the user has a physical printer set as system default and has never selected Save as PDF in Chrome, `--kiosk-printing` will try to print physical pages instead of saving PDFs.
+
+> "Quick setup: open any page in Chrome, press Cmd+P, and at the top of the print dialog change Destination to **Save as PDF**. Click Save once (you can save to a junk filename like /tmp/test.pdf, then delete it). This pins Save as PDF as the destination Chrome will use silently. Confirm when done."
+
+**Step 4 — Restart Chrome with `--kiosk-printing`.** Warn first:
+
+> "Heads up — I need to quit Chrome and relaunch it with a flag. Your tabs will be restored automatically. Any unsaved forms or uploads in Chrome WILL be lost. OK to proceed? Anything you want to save first?"
+
+Wait for explicit yes. Then run:
+
+```bash
+killall "Google Chrome"; sleep 3
+open -na "Google Chrome" --args --kiosk-printing --restore-last-session
+```
+
+Wait ~10 seconds for Chrome to come up and tabs to restore.
+
+**Step 5 — Verify the silent-print pipeline.** Tell the user to:
+
+> 1. Open any web page (a Wikipedia article works fine for the test)
+> 2. Open DevTools console (Cmd+Option+J)
+> 3. Paste: `await window.chromePdf.save()`
+> 4. Tell me the response
+
+They should see something like `{ ok: true, filename: "<title>.pdf", path: "/Users/.../Downloads/<title>.pdf", bytes: <number> }` AND see the file in their Downloads folder. If `ok: false` with a "No PDF downloaded" error, the kiosk-printing flag didn't engage or Save as PDF wasn't pinned — go back to step 3.
+
+**Step 6 — Set up the Shopify customer in Fiken (skip if not using Shopify).** Most external-system sales need a "customer" record. For Shopify, create one called "Shopify nettbutikk":
+
+Either via the Fiken UI (Kontakter → Ny kontakt → name only, mark as kunde), or via the MCP:
+
+```
+Use fiken_create_contact with name "Shopify nettbutikk" and customer: true.
+```
+
+For Stripe Checkout / Square / Vipps, use the same pattern — one umbrella customer per gateway. Note the `contactId` from the response — they'll need it every month.
+
+**Step 7 — Done. Show them the monthly recipe.**
+
+> "All set. Next time you want to close out a month, just say: 'Close out Shopify for May 2026' (or whichever gateway + month). I'll fetch the finance summary PDF, register the sale with the right MVA, attach the PDF as bilag, and settle the payment to the gateway's clearing account — all you do is confirm the numbers match. Try it now or come back later."
+
 ---
 
 ## What This Does
@@ -120,6 +196,8 @@ Connects Claude to Fiken's accounting API so you can manage your Norwegian busin
 
 Sales that happen in a separate system (Shopify storefront, Stripe Checkout, Square POS, Vipps, etc.) need to be entered into Fiken once per accounting period. The pattern is the same across all of them.
 
+**First-time setup:** run `/fiken-mcp shopify-setup` to install the Chrome PDF Helper companion extension and configure Chrome's silent-print pipeline. It's the only one-time prep needed; after that the monthly close is fully scripted.
+
 ### The shape of the entry
 
 1. **One revenue posting per period** for the total gross sales — typed once into Fiken's UI ("Ny" → "Salg" → "Registrer faktura/salg fra annet system"). This is the only step the API does not cover (Fiken has no `POST /sales` endpoint).
@@ -152,8 +230,21 @@ Each payment processor needs its own clearing account in series `1960:xxxxx`. Fi
 
 ### Worked example — Shopify month-end
 
+After running `/fiken-mcp shopify-setup` once, the full monthly close becomes a single conversation. The user says "close out Shopify for May" and you walk through:
+
 ```
-1. (UI) Create sale: "Registrer faktura/salg fra annet system"
+0. (browser, automatic) Navigate Chrome to the Shopify Finance Summary report
+   for the period, wait ~8s for data to render, then trigger the page's own
+   Print button via JavaScript. With --kiosk-printing active and the Chrome
+   PDF Helper extension installed, this saves the populated PDF silently to
+   ~/Downloads. Rename to something stable via Bash `mv`.
+
+   The JS click (run via the user's browser-automation MCP):
+     [...document.querySelectorAll('button')]
+       .filter(b => b.textContent.trim() === 'Print' && b.offsetWidth > 0)[0]
+       .click()
+
+1. (Fiken UI) Create sale: "Registrer faktura/salg fra annet system"
    Date          = last day of the period (e.g. 2026-03-31)
    Kunde         = the source system as a contact (e.g. "Shopify nettbutikk")
    Tekst         = e.g. "Shopify — sales March 2026"
@@ -164,7 +255,7 @@ Each payment processor needs its own clearing account in series `1960:xxxxx`. Fi
 
 2. fiken_attach_to_sale
      saleId   = <id>
-     filePath = "/path/to/shopify-finance-summary-march.pdf"
+     filePath = "/Users/.../Downloads/shopify-finance-summary-march.pdf"
      filename = "shopify-finance-summary-march.pdf"
 
 3. fiken_create_sale_payment
@@ -175,6 +266,8 @@ Each payment processor needs its own clearing account in series `1960:xxxxx`. Fi
 ```
 
 After step 3, the sale is "oppgjort" (settled) and the clearing account holds the receivable until the actual payout arrives.
+
+If the user does NOT have Chrome PDF Helper installed, step 0 falls back to the manual flow: open the report in Chrome, click Print, save as PDF, then continue from step 1. Steps 1-3 are identical either way.
 
 ### Undoing a wrong payment
 

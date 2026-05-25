@@ -17,6 +17,7 @@ Free, open-source [MCP server](https://modelcontextprotocol.io) for [Fiken](http
 - File uploads — attach receipts (PDF, PNG, JPG, GIF) to **purchases, sales, AND invoices** or upload directly to the Fiken inbox
 - **External-system income posting** — clean Shopify/Stripe/Square monthly close pattern (one sale + one gateway payment + bilag attached). See [Booking External-System Sales](./SKILL.md#booking-external-system-sales--shopify--stripe--square--pos) in the skill doc.
 - **Payment registration** on sales and invoices via API (`fiken_create_sale_payment`, `fiken_create_invoice_payment`)
+- **Optional companion**: [Chrome PDF Helper](https://github.com/Casper0301/chrome-pdf-helper) — free open-source Chrome extension that lets Claude capture Shopify/Stripe/Square finance summaries as bilag silently. Run `/fiken-mcp shopify-setup` for the guided install.
 - Free license key activation via email
 
 ## Requirements
