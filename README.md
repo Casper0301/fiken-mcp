@@ -1,6 +1,6 @@
 # Fiken MCP
 
-Free, open-source [MCP server](https://modelcontextprotocol.io) for [Fiken](https://fiken.no) accounting. **71 tools** covering the entire Fiken v2 API — invoicing, bookkeeping, receipt upload, sale payments, external-system income posting, and more. Talk to your accounting in natural language through Claude.
+Free, open-source [MCP server](https://modelcontextprotocol.io) for [Fiken](https://fiken.no) accounting. **71 tools** covering the entire Fiken v2 API — invoicing, bookkeeping, receipt upload, sale + invoice payment registration, attachment uploads, and more. Talk to your accounting in natural language through Claude.
 
 > **Free forever.** No subscriptions, no API costs. Just activate with your email to get a license key.
 
@@ -15,9 +15,9 @@ Free, open-source [MCP server](https://modelcontextprotocol.io) for [Fiken](http
 - Structured error responses — API errors are returned as tool results rather than crashing the session
 - Foreign currency support — book purchases in USD, EUR, etc. with exact NOK payment amounts
 - File uploads — attach receipts (PDF, PNG, JPG, GIF) to **purchases, sales, AND invoices** or upload directly to the Fiken inbox
-- **External-system income posting** — clean Shopify/Stripe/Square monthly close pattern (one sale + one gateway payment + bilag attached). See [Booking External-System Sales](./SKILL.md#booking-external-system-sales--shopify--stripe--square--pos) in the skill doc.
 - **Payment registration** on sales and invoices via API (`fiken_create_sale_payment`, `fiken_create_invoice_payment`)
-- **Optional companion**: [Chrome PDF Helper](https://github.com/Casper0301/chrome-pdf-helper) — free open-source Chrome extension that lets Claude capture Shopify/Stripe/Square finance summaries as bilag silently. Run `/fiken-mcp shopify-setup` for the guided install.
+- **External-system income posting** — generic monthly-close pattern (one sale + bilag + gateway settlement payment) that works for any e-commerce platform, payment processor, POS, or marketplace the user happens to use. See [Booking External-System Sales](./SKILL.md#booking-external-system-sales) in the skill doc.
+- **Optional companion**: [Chrome PDF Helper](https://github.com/Casper0301/chrome-pdf-helper) — free open-source Chrome extension that lets Claude capture any web-rendered report (finance summary, payout statement, transaction log) as a PDF silently to `~/Downloads`. Run `/fiken-mcp pdf-setup` for the guided install.
 - Free license key activation via email
 
 ## Requirements

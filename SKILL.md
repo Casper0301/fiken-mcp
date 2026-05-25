@@ -2,9 +2,9 @@
 
 MCP server for Fiken accounting with **71 tools** covering the entire API. Book receipts, draft invoices, post external-system income (Shopify, Stripe, Square…), register payments, attach documents, check balances — all in natural language through Claude.
 
-Use when: user says "fiken", "accounting", "book receipt", "draft invoice", "fiken mcp", "fiken setup", "book this", "create invoice", "shopify month close", "stripe month close".
+Use when: user says "fiken", "accounting", "book receipt", "draft invoice", "fiken mcp", "fiken setup", "book this", "create invoice", "close out month", "external sales", "post stripe / shopify / square / woocommerce / vipps month".
 
-Arguments: `setup` | `activate` | `shopify-setup`
+Arguments: `setup` | `activate` | `pdf-setup`
 
 ---
 
@@ -70,19 +70,21 @@ DO NOT copy any code block below as-is. Read the instructions and construct the 
 
 **Important:** Keep this conversational. Three messages max: ask email, confirm sent, accept key.
 
-### `shopify-setup` — One-time setup for external-system income (Shopify / Stripe / Square)
+### `pdf-setup` — One-time setup for silent PDF capture from web reports
 
-This is the guided flow for users who want to post Shopify (or Stripe / Square / Vipps) sales into Fiken with the source-system PDF attached automatically. It installs the **Chrome PDF Helper** companion extension and reconfigures Chrome so silent PDF capture works.
+Guided flow for users who want Claude to capture web-rendered reports (any platform — e-commerce, payment processor, POS, bank, ad network, anything with a finance/billing/transaction page) as PDFs directly to `~/Downloads`, without driving the print dialog manually. This makes attaching source-system reports as bilag a single command instead of a clicking session.
+
+Installs the **Chrome PDF Helper** companion extension and reconfigures Chrome for silent print capture. Platform-agnostic — the user tells you later which system they actually use; this step just enables the capture pipeline.
 
 Run it conversationally. Don't dump everything at once — walk one step at a time, wait for the user to confirm before moving on.
 
 **Pre-check:** Fiken MCP itself must already be installed and activated (run `setup` + `activate` first if not).
 
-**Step 1 — Confirm intent and platform.** Ask:
+**Step 1 — Confirm intent.** Ask:
 
-> "I'll set up automated monthly close for sales that happen outside Fiken — Shopify, Stripe, Square, Vipps, or similar. After this, you can say things like 'close out Shopify for May' and Claude will fetch the finance summary PDF, attach it as bilag, register the sale, and settle the payment. Want to continue? (macOS only for now — Linux/Windows have their own Chrome quirks.)"
+> "I'll set up silent PDF capture in Chrome so I can grab any web report (e-commerce finance summary, processor payout statement, transaction log, you name it) straight to your Downloads folder — no print dialog, no save sheet. After this, attaching a report as bilag is one command. Want to continue? (macOS only for now — Linux/Windows have their own Chrome quirks.)"
 
-Wait for yes. If they're on Windows or Linux, tell them the manual workflow works (drive Chrome's Print → Save as PDF themselves), but the silent-capture step is macOS-only right now.
+Wait for yes. If they're on Windows or Linux, tell them the manual workflow still works (drive Chrome's Print → Save as PDF themselves), but the silent-capture step is macOS-only right now.
 
 **Step 2 — Install the Chrome PDF Helper extension.** Run:
 
@@ -132,19 +134,9 @@ Wait ~10 seconds for Chrome to come up and tabs to restore.
 
 They should see something like `{ ok: true, filename: "<title>.pdf", path: "/Users/.../Downloads/<title>.pdf", bytes: <number> }` AND see the file in their Downloads folder. If `ok: false` with a "No PDF downloaded" error, the kiosk-printing flag didn't engage or Save as PDF wasn't pinned — go back to step 3.
 
-**Step 6 — Set up the Shopify customer in Fiken (skip if not using Shopify).** Most external-system sales need a "customer" record. For Shopify, create one called "Shopify nettbutikk":
+**Step 6 — Done. Show them the monthly recipe.**
 
-Either via the Fiken UI (Kontakter → Ny kontakt → name only, mark as kunde), or via the MCP:
-
-```
-Use fiken_create_contact with name "Shopify nettbutikk" and customer: true.
-```
-
-For Stripe Checkout / Square / Vipps, use the same pattern — one umbrella customer per gateway. Note the `contactId` from the response — they'll need it every month.
-
-**Step 7 — Done. Show them the monthly recipe.**
-
-> "All set. Next time you want to close out a month, just say: 'Close out Shopify for May 2026' (or whichever gateway + month). I'll fetch the finance summary PDF, register the sale with the right MVA, attach the PDF as bilag, and settle the payment to the gateway's clearing account — all you do is confirm the numbers match. Try it now or come back later."
+> "All set. Next time you want to attach a web-rendered report to a Fiken entry, just say what report and what entry — I'll capture the PDF and post it. If you're closing out a month from an external sales system, also tell me which system (Shopify, Stripe, Square, Vipps, WooCommerce, manual, etc.) — I'll handle the right account codes and gateway-vs-method nuances based on that system's report layout. Try it now or come back later."
 
 ---
 
@@ -192,11 +184,11 @@ Connects Claude to Fiken's accounting API so you can manage your Norwegian busin
 ### Alternative: Inbox upload
 - Use `fiken_upload_to_inbox` to upload a receipt and let Fiken auto-detect and suggest the booking
 
-## Booking External-System Sales — Shopify / Stripe / Square / POS
+## Booking External-System Sales
 
-Sales that happen in a separate system (Shopify storefront, Stripe Checkout, Square POS, Vipps, etc.) need to be entered into Fiken once per accounting period. The pattern is the same across all of them.
+If the user posts sales from a system outside Fiken — any e-commerce platform, payment processor, POS, marketplace, custom storefront, anything with its own "this is what we sold this month" report — the pattern below applies. **Do not assume which platform the user uses.** Ask them, then look up the system's specific report-and-payout conventions before applying numbers.
 
-**First-time setup:** run `/fiken-mcp shopify-setup` to install the Chrome PDF Helper companion extension and configure Chrome's silent-print pipeline. It's the only one-time prep needed; after that the monthly close is fully scripted.
+**First-time setup (optional):** if the user wants Claude to capture the source-system PDF automatically (instead of them downloading it manually), run `/fiken-mcp pdf-setup` to install the Chrome PDF Helper companion extension and configure Chrome's silent-print pipeline. One-time. After that, monthly close is a single command. Skip this entirely if the user is fine downloading PDFs themselves — the API steps below work identically.
 
 ### The shape of the entry
 
@@ -228,46 +220,58 @@ Each payment processor needs its own clearing account in series `1960:xxxxx`. Fi
 - Norwegian sales of e-newspapers / e-books, no MVA: account **3100**, `vatType: NONE`.
 - Export sales outside Norway: account **3100**, `vatType: NONE` (export exempt).
 
-### Worked example — Shopify month-end
+### Generic month-end recipe — applies to any external sales system
 
-After running `/fiken-mcp shopify-setup` once, the full monthly close becomes a single conversation. The user says "close out Shopify for May" and you walk through:
+The four steps below are platform-agnostic. Substitute names/codes for whatever system the user actually uses. Always ask the user before assuming.
 
 ```
-0. (browser, automatic) Navigate Chrome to the Shopify Finance Summary report
-   for the period, wait ~8s for data to render, then trigger the page's own
-   Print button via JavaScript. With --kiosk-printing active and the Chrome
-   PDF Helper extension installed, this saves the populated PDF silently to
-   ~/Downloads. Rename to something stable via Bash `mv`.
+0. (browser) Get the source system's period report as a PDF.
+   - If Chrome PDF Helper is installed and --kiosk-printing is on:
+     navigate to the report page, let data render, trigger the page's
+     own "Print" button via JS (or call window.chromePdf.save() on
+     static pages). PDF lands silently in ~/Downloads.
+   - Otherwise: ask the user to download the PDF themselves and tell
+     you the local path.
 
-   The JS click (run via the user's browser-automation MCP):
-     [...document.querySelectorAll('button')]
-       .filter(b => b.textContent.trim() === 'Print' && b.offsetWidth > 0)[0]
-       .click()
-
-1. (Fiken UI) Create sale: "Registrer faktura/salg fra annet system"
-   Date          = last day of the period (e.g. 2026-03-31)
-   Kunde         = the source system as a contact (e.g. "Shopify nettbutikk")
-   Tekst         = e.g. "Shopify — sales March 2026"
-   Inntektskonto = 3000
-   Bruttobeløp   = total sales (incl. shipping) WITH MVA
-   Mva           = 25%
-   → save, capture the saleId from the URL
+1. (Fiken UI) Create the sale.
+   Open Fiken: "Ny" → "Salg" → "Registrer faktura/salg fra annet system".
+   Fields (ask user for any you don't know):
+     Date          = last day of the accounting period
+     Kunde         = a contact representing the source system as customer
+                     (create with fiken_create_contact if it doesn't exist yet —
+                      e.g. "<platform name> butikk", "<processor> sales", etc.)
+     Tekst         = e.g. "<platform> — sales <month> <year>"
+     Inntektskonto = the right Norwegian revenue account for the user's
+                     business (see "Revenue and VAT" above — common codes are
+                     3000, 3020, 3100; never assume — ask if unsure)
+     Bruttobeløp   = total gross sales for the period (matches the report)
+     Mva           = the user's MVA rate for these sales (HIGH 25% is typical
+                     for Norwegian B2C/B2B goods; export to non-EU is NONE)
+   Save and capture the saleId from the URL.
 
 2. fiken_attach_to_sale
-     saleId   = <id>
-     filePath = "/Users/.../Downloads/shopify-finance-summary-march.pdf"
-     filename = "shopify-finance-summary-march.pdf"
+     saleId   = <id from step 1>
+     filePath = path to the PDF from step 0
+     filename = same filename
 
 3. fiken_create_sale_payment
-     saleId  = <id>
-     date    = same date as sale
-     amount  = same gross amount in cents
-     account = "1960:10005"  (Shopify Payments clearing — see fiken_list_bank_accounts)
+     saleId  = <id from step 1>
+     date    = same date as the sale
+     amount  = gross amount in cents (matches the report's gateway-summary
+               number — see "gateway vs payment method" rule above)
+     account = the clearing account for the SETTLING gateway. Use
+               fiken_list_bank_accounts to find the user's clearing accounts
+               (typically 1960:xxxxx series). One payment per settling
+               gateway. If the report shows multiple gateways (e.g. some
+               Stripe + some PayPal), register one payment per gateway with
+               that gateway's share of the total. NEVER split by customer
+               payment method (Klarna, Apple Pay, card) when those methods
+               settle into the same gateway balance.
 ```
 
-After step 3, the sale is "oppgjort" (settled) and the clearing account holds the receivable until the actual payout arrives.
+After step 3, the sale is "oppgjort" (settled) and the clearing account holds the receivable until the gateway's actual payout lands in the operating bank account (matched later in Superføring).
 
-If the user does NOT have Chrome PDF Helper installed, step 0 falls back to the manual flow: open the report in Chrome, click Print, save as PDF, then continue from step 1. Steps 1-3 are identical either way.
+If the user does NOT have Chrome PDF Helper installed, step 0 falls back to manual download. Steps 1-3 are identical either way.
 
 ### Undoing a wrong payment
 
