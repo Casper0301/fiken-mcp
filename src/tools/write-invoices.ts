@@ -71,4 +71,53 @@ export function registerWriteInvoiceTools(server: McpServer, client: FikenClient
       });
     })
   );
+
+  // ---------------------------------------------------------------------------
+  // fiken_create_invoice_payment
+  // ---------------------------------------------------------------------------
+  // POST /companies/{slug}/invoices/{invoiceId}/payments
+  //
+  // Register an innbetaling on an existing (issued) invoice. Same shape as
+  // sale payments. DELETE is not supported by Fiken's API (returns 405) —
+  // use the UI "Angre" button if a wrong payment needs to be undone.
+  // ---------------------------------------------------------------------------
+  server.tool(
+    "fiken_create_invoice_payment",
+    "⚠️ WRITES TO FIKEN — Register a payment (innbetaling) on an existing invoice. Amount in cents. Account is the Fiken accountCode of the receiving account (use fiken_list_bank_accounts). Cannot be deleted via API.",
+    {
+      ...CompanySlugSchema.shape,
+      invoiceId: z.any().describe("Invoice ID (number)"),
+      date: z.string().describe("Payment date (YYYY-MM-DD)"),
+      amount: z.any().describe("Payment amount in cents/øre"),
+      account: z.string().describe("Fiken accountCode of the receiving account, e.g. '1920:10001'"),
+      fee: z.any().optional().describe("Optional gateway fee in cents"),
+      feeAccount: z.string().optional().describe("Account code for the fee. Required if fee is set."),
+    },
+    wrapToolError(async (args: unknown) => {
+      const a = args as Record<string, unknown>;
+      const companySlug = String(a.companySlug);
+      const invoiceId = Number(a.invoiceId);
+      const body: Record<string, unknown> = {
+        date: String(a.date),
+        amount: Number(a.amount),
+        account: String(a.account),
+      };
+      if (a.fee != null) {
+        body.fee = Number(a.fee);
+        if (a.feeAccount) body.feeAccount = String(a.feeAccount);
+      }
+
+      const result = await client.post(
+        `/companies/${companySlug}/invoices/${invoiceId}/payments`,
+        body
+      );
+
+      return toText({
+        success: true,
+        message: `Payment registered on invoice ${invoiceId}`,
+        location: result.location,
+        data: result.data,
+      });
+    })
+  );
 }

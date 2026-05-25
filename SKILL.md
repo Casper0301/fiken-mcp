@@ -1,6 +1,6 @@
 # Fiken MCP — Talk to Your Accounting
 
-MCP server for Fiken accounting with 67 tools covering the entire API. Book receipts, draft invoices, check balances — all in natural language through Claude.
+MCP server for Fiken accounting with **71 tools** covering the entire API. Book receipts, draft invoices, post external-system income (Shopify, Stripe, Square…), register payments, attach documents, check balances — all in natural language through Claude.
 
 Use when: user says "fiken", "accounting", "book receipt", "draft invoice", "fiken mcp", "fiken setup", "book this", "create invoice".
 
@@ -74,13 +74,14 @@ DO NOT copy any code block below as-is. Read the instructions and construct the 
 
 ## What This Does
 
-Connects Claude to Fiken's accounting API so you can manage your Norwegian business accounting through natural language. The MCP server provides 67 tools covering:
+Connects Claude to Fiken's accounting API so you can manage your Norwegian business accounting through natural language. The MCP server provides 71 tools covering:
 
 - **Purchases**: Book receipts, create purchase drafts, attach documents
-- **Invoices**: Draft, send, and manage invoices and credit notes
+- **Invoices**: Draft, send, manage; register payments; attach extra documentation
+- **Sales (external-system income)**: Attach source-system reports as bilag, register settlement payments from Shopify/Stripe/Square/etc.
 - **Contacts**: Create and manage suppliers and customers
 - **Accounts**: Check balances, list accounts, view transactions
-- **Bank accounts**: View balances across all accounts
+- **Bank accounts**: View balances across all accounts (including clearing accounts for payment processors)
 - **Products**: Manage product catalog
 - **Journal entries**: Create general journal entries (fri postering)
 - **Inbox**: Upload receipts for auto-detection
@@ -114,6 +115,70 @@ Connects Claude to Fiken's accounting API so you can manage your Norwegian busin
 
 ### Alternative: Inbox upload
 - Use `fiken_upload_to_inbox` to upload a receipt and let Fiken auto-detect and suggest the booking
+
+## Booking External-System Sales — Shopify / Stripe / Square / POS
+
+Sales that happen in a separate system (Shopify storefront, Stripe Checkout, Square POS, Vipps, etc.) need to be entered into Fiken once per accounting period. The pattern is the same across all of them.
+
+### The shape of the entry
+
+1. **One revenue posting per period** for the total gross sales — typed once into Fiken's UI ("Ny" → "Salg" → "Registrer faktura/salg fra annet system"). This is the only step the API does not cover (Fiken has no `POST /sales` endpoint).
+2. **One settlement payment** for the same period, registered with `fiken_create_sale_payment` against the **gateway's clearing account** (not the customer's payment method).
+3. **The source-system report attached as bilag** with `fiken_attach_to_sale` — typically the PDF "finance summary" / "payout report" / "Z-report" from the source system.
+
+When the actual payout from the gateway lands in the operating bank account later, that bank transaction is matched in Fiken's Superføring against the clearing-account balance — no extra posting needed.
+
+### ⚠️ Gateway vs payment method — the critical distinction
+
+Source-system reports usually show TWO breakdowns that look similar but mean different things:
+
+| Section | What it tells you | Use for Fiken? |
+|---------|-------------------|----------------|
+| **Payments by gateway summary** | Which processor settles the money (Shopify Payments, Stripe, Square…) | ✅ **Yes — use this.** One line per gateway = one `fiken_create_sale_payment` to that gateway's clearing account. |
+| Net payments by method | What wallet the customer used (Klarna, Apple Pay, card, BNPL…) | ❌ No. This is informational. Payment methods routed through a gateway settle into the gateway's balance, not into separate per-method accounts. |
+
+Concrete example: a Shopify report might say "Klarna NOK 1,575 + Card NOK 875" in the **method** card and "Shopify Payments NOK 2,450" in the **gateway** card. Klarna here is a payment method *inside* Shopify Payments — the merchant never sees a Klarna balance. Register one payment of NOK 2,450 to the Shopify Payments clearing account (e.g. `1960:10005`). Splitting by method creates phantom balances in accounts that never receive money.
+
+### Clearing accounts (kontoplan)
+
+Each payment processor needs its own clearing account in series `1960:xxxxx`. Find existing ones via `fiken_list_bank_accounts` — Fiken pre-seeds several (Shopify Payments, Klarna, Vipps, Stripe, PayPal) the first time you enable them under Selskap → Tilleggstjenester. If a processor isn't listed, add it in Fiken's UI before using its `accountCode` here.
+
+### Revenue and VAT
+
+- Norwegian goods sales, høy mva-sats: account **3000** (Salgsinntekt varer, høy mva), `vatType: HIGH` (25%).
+- Norwegian service sales: account **3020** (Salgsinntekt tjenester, høy mva), `vatType: HIGH` (25%).
+- Norwegian sales of e-newspapers / e-books, no MVA: account **3100**, `vatType: NONE`.
+- Export sales outside Norway: account **3100**, `vatType: NONE` (export exempt).
+
+### Worked example — Shopify month-end
+
+```
+1. (UI) Create sale: "Registrer faktura/salg fra annet system"
+   Date          = last day of the period (e.g. 2026-03-31)
+   Kunde         = the source system as a contact (e.g. "Shopify nettbutikk")
+   Tekst         = e.g. "Shopify — sales March 2026"
+   Inntektskonto = 3000
+   Bruttobeløp   = total sales (incl. shipping) WITH MVA
+   Mva           = 25%
+   → save, capture the saleId from the URL
+
+2. fiken_attach_to_sale
+     saleId   = <id>
+     filePath = "/path/to/shopify-finance-summary-march.pdf"
+     filename = "shopify-finance-summary-march.pdf"
+
+3. fiken_create_sale_payment
+     saleId  = <id>
+     date    = same date as sale
+     amount  = same gross amount in cents
+     account = "1960:10005"  (Shopify Payments clearing — see fiken_list_bank_accounts)
+```
+
+After step 3, the sale is "oppgjort" (settled) and the clearing account holds the receivable until the actual payout arrives.
+
+### Undoing a wrong payment
+
+`DELETE /sales/{id}/payments/{paymentId}` returns HTTP 405 — payment deletion is NOT exposed by Fiken's API. Click the **Angre** button next to the payment row in the sale's Fakturasaldo panel in Fiken's UI, confirm "Slett", then re-register with `fiken_create_sale_payment` if needed.
 
 ## VAT Types for Purchases
 
@@ -149,7 +214,26 @@ Connects Claude to Fiken's accounting API so you can manage your Norwegian busin
 
 ## Human-in-the-Loop
 
-Every write operation (creating purchases, invoices, contacts) requires user confirmation before executing. The MCP server shows a preview of what will be created and waits for approval. It cannot accidentally modify accounting data.
+Every write operation (creating purchases, invoices, contacts, sale payments, attachments) requires user confirmation before executing. The MCP server shows a preview of what will be created and waits for approval. It cannot accidentally modify accounting data.
+
+### What is API-able and what is UI-only
+
+| Operation | API | Notes |
+|-----------|-----|-------|
+| List / read anything | ✅ | Full read coverage |
+| Create purchase | ✅ | `fiken_create_purchase` |
+| Delete purchase | ✅ | `fiken_delete_purchase` (clean soft-delete with auto-reversal) |
+| Attach to purchase | ✅ | `fiken_attach_to_purchase` |
+| Create contact | ✅ | `fiken_create_contact` |
+| Create invoice draft | ✅ | `fiken_create_invoice_draft` |
+| Register payment on invoice | ✅ | `fiken_create_invoice_payment` |
+| Attach to invoice | ✅ | `fiken_attach_to_invoice` |
+| **Create sale** | ❌ | No `POST /sales`. Use Fiken UI: "Ny" → "Salg" → "Registrer faktura/salg fra annet system". |
+| Register payment on sale | ✅ | `fiken_create_sale_payment` |
+| Attach to sale | ✅ | `fiken_attach_to_sale` |
+| Delete sale/invoice payment | ❌ | Returns HTTP 405. Use Fiken UI "Angre" button. |
+| Send invoice (EHF, email) | ❌ | Use Fiken UI. |
+| Bankavstemming / Superføring | ❌ | UI-only — bank-feed matching. |
 
 ## Reading PDF Receipts
 

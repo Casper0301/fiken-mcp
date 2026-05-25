@@ -1,6 +1,6 @@
 # Fiken MCP
 
-Free, open-source [MCP server](https://modelcontextprotocol.io) for [Fiken](https://fiken.no) accounting. 67 tools covering the entire Fiken v2 API — invoicing, bookkeeping, receipt upload, and more. Talk to your accounting in natural language through Claude.
+Free, open-source [MCP server](https://modelcontextprotocol.io) for [Fiken](https://fiken.no) accounting. **71 tools** covering the entire Fiken v2 API — invoicing, bookkeeping, receipt upload, sale payments, external-system income posting, and more. Talk to your accounting in natural language through Claude.
 
 > **Free forever.** No subscriptions, no API costs. Just activate with your email to get a license key.
 
@@ -8,13 +8,15 @@ Free, open-source [MCP server](https://modelcontextprotocol.io) for [Fiken](http
 
 ## Features
 
-- 67 tools covering the full Fiken v2 API (read + write)
+- **71 tools** covering the full Fiken v2 API (read + write)
 - Multi-company support — `companySlug` is a parameter on every tool
 - Paginated list endpoints with metadata
 - Serial request queue (respects Fiken's 1 concurrent request per user rule)
 - Structured error responses — API errors are returned as tool results rather than crashing the session
 - Foreign currency support — book purchases in USD, EUR, etc. with exact NOK payment amounts
-- File uploads — attach receipts (PDF, PNG, JPG, GIF) to purchases or upload directly to the Fiken inbox
+- File uploads — attach receipts (PDF, PNG, JPG, GIF) to **purchases, sales, AND invoices** or upload directly to the Fiken inbox
+- **External-system income posting** — clean Shopify/Stripe/Square monthly close pattern (one sale + one gateway payment + bilag attached). See [Booking External-System Sales](./SKILL.md#booking-external-system-sales--shopify--stripe--square--pos) in the skill doc.
+- **Payment registration** on sales and invoices via API (`fiken_create_sale_payment`, `fiken_create_invoice_payment`)
 - Free license key activation via email
 
 ## Requirements

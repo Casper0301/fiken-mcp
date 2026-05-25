@@ -18,4 +18,5 @@ export { registerInboxTools } from "./inbox.js";
 export { registerWritePurchaseTools } from "./write-purchases.js";
 export { registerWriteContactTools } from "./write-contacts.js";
 export { registerWriteInvoiceTools } from "./write-invoices.js";
+export { registerWriteSaleTools } from "./write-sales.js";
 export { registerWriteAttachmentTools } from "./write-attachments.js";
